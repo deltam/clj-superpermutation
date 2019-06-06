@@ -1,5 +1,6 @@
 (ns superm.core
-  (:require [clojure.math.combinatorics :as cmb]))
+  (:require [clojure.math.combinatorics :as cmb]
+            [clojure.core.async :as ac]))
 
 (def +all-perm-set+ (map #(apply hash-set
                                  (cmb/permutations (range 1 (inc %))))
@@ -10,6 +11,7 @@
 
 (defn count-perms [n]
   (cmb/count-permutations (range 1 (inc n))))
+
 
 (defn edge-cost
   "Calculate num of adding digits that concat p1->p2 "
@@ -34,31 +36,32 @@
 (defn perm-graph [n]
   (cost-graph n (perms n)))
 
+(defn cost [g s d]
+  ((:edges g) [s d]))
 
-(defn find-next-edge [g src-node]
-  (let [edges (map #(vector src-node %) (:nodes g))]
-    (select-keys (:edges g) edges)))
-
-(defn remove-reach-node [g node]
-  (let [edges (for [[s d] (keys (:edges g))
-                    :when (not= d node)]
-                [s d])]
-    (-> g
-        (update :nodes disj node)
-        (update :edges select-keys edges)
-        )))
+(defn print-graph [g]
+  (doseq [[[p1 p2] c] (:edges g)]
+    (printf "%s -- %d --> %s\n" p1 c p2)))
 
 
-(defn gen-perm-seq [n init]
+(defn gen-perm-seq [n]
   {:n n
-   :reached #{init}
-   :seq [{:perm init, :cost 0}]
+   :reached #{}
+   :seq []
    :waste 0})
+
+(defn init-perm-seq
+  ([n init]
+   (let [ps (gen-perm-seq n)]
+     (-> ps
+         (update :reached conj init)
+         (update :seq conj {:perm init, :cost 0}))))
+  ([n] (init-perm-seq n (vec (range 1 (inc n))))))
 
 (defn last-perm [perm-seq]
   (:perm (last (:seq perm-seq))))
 
-(defn waste-add [perm-seq perm cost]
+(defn waste-conj [perm-seq perm cost]
   (let [n (:n perm-seq)
         all (perms n)
         lp (last-perm perm-seq)
@@ -73,34 +76,41 @@
   (-> perm-seq
       (update :seq conj {:perm perm, :cost c})
       (update :reached conj perm)
-      (update :waste + (waste-add perm-seq perm c))))
+      (update :waste + (waste-conj perm-seq perm c))))
 
 (defn rank [perm-seq]
   (count (:reached perm-seq)))
 
+(defn find-next-perm [perm-seq g]
+  (let [dest-nodes (clojure.set/difference (perms (:n perm-seq)) (:reached perm-seq))
+        lp (last-perm perm-seq)
+        edges (map #(vector lp %) dest-nodes)]
+    (select-keys (:edges g) edges)))
 
-(defn chaffin-rec [perm-seq g waste-limit]
-  (let [lp (last-perm perm-seq)
-        rg (remove-reach-node g lp)
-        branches (map (fn [[[_ d] c]] (conj-perm perm-seq d c))
-                      (find-next-edge rg lp))
+(defn max-rank [ps]
+  (reduce (fn [mp p] (if (< (rank mp) (rank p))
+                       p
+                       mp))
+          ps))
+
+
+(defn chaffin-branch-seq
+  "Return coll of perm-seq has waste under waste-limit"
+  [prefix-perm g waste-limit]
+  (let [branches (map (fn [[[_ d] c]] (conj-perm prefix-perm d c))
+                      (find-next-perm prefix-perm g))
         cut (filter (fn [{w :waste}] (<= w waste-limit))
-                    branches)
-        max-ps (map #(chaffin-rec % rg waste-limit)
-                    cut)]
-    (if (or (empty? (:nodes rg)) (empty? max-ps))
-      perm-seq
-      (reduce (fn [mp p] (if (< (rank mp) (rank p))
-                           p
-                           mp))
-              max-ps))))
+                    branches)]
+    (if (empty? cut)
+      [prefix-perm]
+      (mapcat #(chaffin-branch-seq % g waste-limit) cut))))
 
 (defn chaffin
   "Chaffin Method https://github.com/superpermutators/superperm/wiki/Chaffin-method"
   [n waste-limit]
   (let [g (perm-graph n)
-        ps (gen-perm-seq n (vec (range 1 (inc n))))]
-    (chaffin-rec ps g waste-limit)))
+        ps (init-perm-seq n)]
+    (max-rank (chaffin-branch-seq ps g waste-limit))))
 
 
 (defn perms->digits [{perms :seq}]
@@ -117,18 +127,27 @@
                                    {:waste w,
                                     :max (rank c)
                                     :perm (perms->str c)}))
-                         (range))]
+                         (range))
+        all (count-perms n)]
     (printf "n=%d\n" n)
     (loop [{w :waste, m :max, p :perm} (first chaffin-seq), cs (rest chaffin-seq)]
       (printf "%d\t%d\t%s\n" w m p)
-      (if (< m (count-perms n))
+      (if (< m all)
         (recur (first cs) (rest cs))))))
 
-
-
-(defn print-graph [g]
-  (doseq [[[p1 p2] c] (:edges g)]
-    (printf "%s -- %d --> %s\n" p1 c p2)))
+(defn str->perms [s n]
+  (let [is (map #(Integer/parseInt (str %)) s)
+        all (perms n)
+        perms (filter #(contains? all %)
+                      (take-while #(= (count %) n)
+                                  (map #(take n (drop % is)) (range))))
+        ps (init-perm-seq n (first perms))
+        g (perm-graph n)]
+    (loop [ret ps, p (first perms), p2 (second perms), r (drop 2 perms)]
+      (if (nil? p2)
+        ret
+        (let [c (cost g p p2)]
+          (recur (conj-perm ret p2 c) p2 (first r) (rest r)))))))
 
 
 
