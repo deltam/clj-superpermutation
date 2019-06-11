@@ -1,9 +1,10 @@
 (ns superm.core
+  "find minimal superpermutation"
   (:require [clojure.math.combinatorics :as cmb]
+            [clojure.set :as cs]
             [clojure.core.async :as ac]))
 
-(def +all-perm-set+ (map #(apply hash-set
-                                 (cmb/permutations (range 1 (inc %))))
+(def +all-perm-set+ (map #(set (cmb/permutations (range 1 (inc %))))
                          (range)))
 
 (defn perms [n]
@@ -23,25 +24,21 @@
         c
         (recur (inc c))))))
 
-(defn cost-graph [n perms]
-  (let [pairs (for [p1 perms, p2 perms :when (not= p1 p2)]
+(defn raw-perm-graph [n]
+  (let [pset (perms n)
+        pairs (for [p1 pset, p2 pset :when (not= p1 p2)]
                 [p1 p2])]
-    {:nodes (apply hash-set perms)
+    {:nodes pset
      :edges (apply merge
                    (for [[src dest] pairs
                          :let [c (edge-cost src dest)]
                          :when (< c n)]
                      {[src dest] c}))}))
 
+(def +all-perm-graph+ (map #(raw-perm-graph %) (range)))
+
 (defn perm-graph [n]
-  (cost-graph n (perms n)))
-
-(defn cost [g s d]
-  ((:edges g) [s d]))
-
-(defn print-graph [g]
-  (doseq [[[p1 p2] c] (:edges g)]
-    (printf "%s -- %d --> %s\n" p1 c p2)))
+  (nth +all-perm-graph+ n))
 
 
 (defn gen-perm-seq [n]
@@ -55,37 +52,45 @@
    (let [ps (gen-perm-seq n)]
      (-> ps
          (update :reached conj init)
-         (update :seq conj {:perm init, :cost 0}))))
+         (update :seq conj {:perm init, :cost n, :waste '()}))))
   ([n] (init-perm-seq n (vec (range 1 (inc n))))))
 
 (defn last-perm [perm-seq]
   (:perm (last (:seq perm-seq))))
 
-(defn waste-conj [perm-seq perm cost]
-  (let [n (:n perm-seq)
-        all (perms n)
-        lp (last-perm perm-seq)
-        sub-perm (concat lp (take-last cost perm))]
-    (count
-     (filter #(or (not (contains? all %))
-                  (contains? (:reached perm-seq) %))
-             (map #(drop-last % (take-last n sub-perm))
-                  (range cost))))))
+(defn tail-seq [perm-seq perm c]
+  (let [tail (concat (drop 1 (last-perm perm-seq)) (take-last c perm))]
+    (map #(->> tail
+               (drop %)
+               (take (:n perm-seq)))
+         (range c))))
+
+(defn waste-conj [perm-seq perm c]
+  (let [all (perms (:n perm-seq))
+        tails (tail-seq perm-seq perm c)]
+    (map last
+         (filter #(or (not (contains? all %))
+                      (contains? (:reached perm-seq) %))
+                 tails))))
 
 (defn conj-perm [perm-seq perm c]
-  (-> perm-seq
-      (update :seq conj {:perm perm, :cost c})
-      (update :reached conj perm)
-      (update :waste + (waste-conj perm-seq perm c))))
+  (let [w (waste-conj perm-seq perm c)
+        all (perms (:n perm-seq))
+        tail-perms (filter #(contains? all %) (tail-seq perm-seq perm c))]
+    (-> perm-seq
+        (update :seq conj {:perm perm, :cost c, :waste w})
+        (update :reached cs/union (set tail-perms))
+        (update :waste + (count w)))))
 
 (defn rank [perm-seq]
   (count (:reached perm-seq)))
 
-(defn find-next-perm [perm-seq g]
-  (let [dest-nodes (clojure.set/difference (perms (:n perm-seq)) (:reached perm-seq))
+(defn find-next-perm [perm-seq]
+  (let [n (:n perm-seq)
+        dest-nodes (cs/difference (perms n) (:reached perm-seq))
         lp (last-perm perm-seq)
         edges (map #(vector lp %) dest-nodes)]
-    (select-keys (:edges g) edges)))
+    (select-keys (:edges (perm-graph n)) edges)))
 
 (defn max-rank [ps]
   (reduce (fn [mp p] (if (< (rank mp) (rank p))
@@ -96,21 +101,20 @@
 
 (defn chaffin-branch-seq
   "Return coll of perm-seq has waste under waste-limit"
-  [prefix-perm g waste-limit]
+  [prefix-perm waste-limit]
   (let [branches (map (fn [[[_ d] c]] (conj-perm prefix-perm d c))
-                      (find-next-perm prefix-perm g))
+                      (find-next-perm prefix-perm))
         cut (filter (fn [{w :waste}] (<= w waste-limit))
                     branches)]
     (if (empty? cut)
       [prefix-perm]
-      (mapcat #(chaffin-branch-seq % g waste-limit) cut))))
+      (mapcat #(chaffin-branch-seq % waste-limit) cut))))
 
 (defn chaffin
   "Chaffin Method https://github.com/superpermutators/superperm/wiki/Chaffin-method"
   [n waste-limit]
-  (let [g (perm-graph n)
-        ps (init-perm-seq n)]
-    (max-rank (chaffin-branch-seq ps g waste-limit))))
+  (let [ps (init-perm-seq n)]
+    (max-rank (chaffin-branch-seq ps waste-limit))))
 
 
 (defn perms->digits [{perms :seq}]
@@ -146,7 +150,7 @@
     (loop [ret ps, p (first perms), p2 (second perms), r (drop 2 perms)]
       (if (nil? p2)
         ret
-        (let [c (cost g p p2)]
+        (let [c ((:edges  g) [p p2])]
           (recur (conj-perm ret p2 c) p2 (first r) (rest r)))))))
 
 
