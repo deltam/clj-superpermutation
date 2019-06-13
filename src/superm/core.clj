@@ -7,7 +7,7 @@
 (def +all-perm-set+ (map #(set (cmb/permutations (range 1 (inc %))))
                          (range)))
 
-(defn perms [n]
+(defn perm-set [n]
   (nth +all-perm-set+ n))
 
 (defn count-perms [n]
@@ -25,7 +25,7 @@
         (recur (inc c))))))
 
 (defn raw-perm-graph [n]
-  (let [pset (perms n)
+  (let [pset (perm-set n)
         pairs (for [p1 pset, p2 pset :when (not= p1 p2)]
                 [p1 p2])]
     {:nodes pset
@@ -43,7 +43,7 @@
 
 (defn gen-perm-seq [n]
   {:n n
-   :reached #{}
+   :rest (perm-set n)
    :seq []
    :waste 0})
 
@@ -51,7 +51,7 @@
   ([n init]
    (let [ps (gen-perm-seq n)]
      (-> ps
-         (update :reached conj init)
+         (update :rest disj init)
          (update :seq conj {:perm init, :cost n, :waste '()}))))
   ([n] (init-perm-seq n (vec (range 1 (inc n))))))
 
@@ -66,30 +66,28 @@
          (range c))))
 
 (defn waste-conj [perm-seq perm c]
-  (let [all (perms (:n perm-seq))
-        tails (tail-seq perm-seq perm c)]
+  (let [tails (tail-seq perm-seq perm c)]
     (map last
-         (filter #(or (not (contains? all %))
-                      (contains? (:reached perm-seq) %))
+         (filter #(not (contains? (:rest perm-seq) %))
                  tails))))
 
 (defn conj-perm [perm-seq perm c]
   (let [w (waste-conj perm-seq perm c)
-        all (perms (:n perm-seq))
+        all (perm-set (:n perm-seq))
         tail-perms (filter #(contains? all %) (tail-seq perm-seq perm c))]
     (-> perm-seq
         (update :seq conj {:perm perm, :cost c, :waste w})
-        (update :reached cs/union (set tail-perms))
+        (update :rest cs/difference (set tail-perms))
         (update :waste + (count w)))))
 
 (defn rank [perm-seq]
-  (count (:reached perm-seq)))
+  (let [all (count-perms (:n perm-seq))]
+    (- all (count (:rest perm-seq)))))
 
 (defn find-next-perm [perm-seq]
   (let [n (:n perm-seq)
-        dest-nodes (cs/difference (perms n) (:reached perm-seq))
         lp (last-perm perm-seq)
-        edges (map #(vector lp %) dest-nodes)]
+        edges (map #(vector lp %) (:rest perm-seq))]
     (select-keys (:edges (perm-graph n)) edges)))
 
 (defn max-rank [ps]
@@ -141,7 +139,7 @@
 
 (defn str->perms [s n]
   (let [is (map #(Integer/parseInt (str %)) s)
-        all (perms n)
+        all (perm-set n)
         perms (filter #(contains? all %)
                       (take-while #(= (count %) n)
                                   (map #(take n (drop % is)) (range))))
