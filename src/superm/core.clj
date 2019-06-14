@@ -97,22 +97,29 @@
           ps))
 
 
-(defn chaffin-branch-seq
-  "Return coll of perm-seq has waste under waste-limit"
-  [prefix-perm waste-limit]
+
+(defn chaffin-search
+  "Search maximum length perm-seq has waste under waste-limit"
+  [prefix-perm max-perm waste-limit]
   (let [branches (map (fn [[[_ d] c]] (conj-perm prefix-perm d c))
                       (find-next-perm prefix-perm))
         cut (filter (fn [{w :waste}] (<= w waste-limit))
                     branches)]
     (if (empty? cut)
-      [prefix-perm]
-      (mapcat #(chaffin-branch-seq % waste-limit) cut))))
+      (if (< (rank max-perm) (rank prefix-perm))
+        prefix-perm)
+      (loop [p (first cut), rp (rest cut), mp max-perm]
+        (if (nil? p)
+          mp
+          (let [p2 (chaffin-search p mp waste-limit)
+                mp2 (if (nil? p2) mp p2)]
+            (recur (first rp) (rest rp) mp2)))))))
 
 (defn chaffin
   "Chaffin Method https://github.com/superpermutators/superperm/wiki/Chaffin-method"
   [n waste-limit]
   (let [ps (init-perm-seq n)]
-    (max-rank (chaffin-branch-seq ps waste-limit))))
+    (chaffin-search ps ps waste-limit)))
 
 
 (defn perms->digits [{perms :seq}]
