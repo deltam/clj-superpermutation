@@ -90,36 +90,40 @@
         edges (map #(vector lp %) (:rest perm-seq))]
     (select-keys (:edges (perm-graph n)) edges)))
 
-(defn max-rank [ps]
-  (reduce (fn [mp p] (if (< (rank mp) (rank p))
-                       p
-                       mp))
-          ps))
 
 
+(def +chaffin-table+ [[] [1] [2] [3 6]
+                      [4 8 12 14 18 20 24]])
+
+(defn short-branch? [cur-perm max-perm]
+  (let [table (get +chaffin-table+ (:n cur-perm) [])
+        w (- (:waste max-perm) (:waste cur-perm))
+        diff (- (rank max-perm) (rank cur-perm))]
+    (and (<= 0 w) (< w (count table))
+         (<= (nth table w) diff))))
 
 (defn chaffin-search
   "Search maximum length perm-seq has waste under waste-limit"
   [prefix-perm max-perm waste-limit]
-  (let [branches (map (fn [[[_ d] c]] (conj-perm prefix-perm d c))
-                      (find-next-perm prefix-perm))
-        cut (filter (fn [{w :waste}] (<= w waste-limit))
-                    branches)]
-    (if (empty? cut)
+  (let [branches (->> (find-next-perm prefix-perm)
+                      (map (fn [[[_ d] c]] (conj-perm prefix-perm d c)))
+                      (filter (fn [{w :waste}] (<= w waste-limit))))]
+    (if (empty? branches)
       (if (< (rank max-perm) (rank prefix-perm))
-        prefix-perm)
-      (loop [p (first cut), rp (rest cut), mp max-perm]
-        (if (nil? p)
-          mp
-          (let [p2 (chaffin-search p mp waste-limit)
-                mp2 (if (nil? p2) mp p2)]
-            (recur (first rp) (rest rp) mp2)))))))
+        prefix-perm
+        max-perm)
+      (reduce (fn [mp p] (if (short-branch? p mp)
+                           mp
+                           (chaffin-search p mp waste-limit)))
+              max-perm
+              branches))))
 
 (defn chaffin
   "Chaffin Method https://github.com/superpermutators/superperm/wiki/Chaffin-method"
   [n waste-limit]
   (let [ps (init-perm-seq n)]
     (chaffin-search ps ps waste-limit)))
+
 
 
 (defn perms->digits [{perms :seq}]
