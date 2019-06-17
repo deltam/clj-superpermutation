@@ -35,7 +35,7 @@
                          :when (< c n)]
                      {[src dest] c}))}))
 
-(def +all-perm-graph+ (map #(raw-perm-graph %) (range)))
+(def +all-perm-graph+ (map raw-perm-graph (range)))
 
 (defn perm-graph [n]
   (nth +all-perm-graph+ n))
@@ -92,19 +92,15 @@
 
 
 
-(def +chaffin-table+ [[] [1] [2] [3 6]
-                      [4 8 12 14 18 20 24]])
-
-(defn short-branch? [cur-perm max-perm]
-  (let [table (get +chaffin-table+ (:n cur-perm) [])
-        w (- (:waste max-perm) (:waste cur-perm))
+(defn short-branch? [cur-perm max-perm table]
+  (let [w (- (:waste max-perm) (:waste cur-perm))
         diff (- (rank max-perm) (rank cur-perm))]
     (and (<= 0 w) (< w (count table))
          (<= (nth table w) diff))))
 
 (defn chaffin-search
   "Search maximum length perm-seq has waste under waste-limit"
-  [prefix-perm max-perm waste-limit]
+  [prefix-perm max-perm waste-limit table]
   (let [branches (->> (find-next-perm prefix-perm)
                       (map (fn [[[_ d] c]] (conj-perm prefix-perm d c)))
                       (filter (fn [{w :waste}] (<= w waste-limit))))]
@@ -112,17 +108,37 @@
       (if (< (rank max-perm) (rank prefix-perm))
         prefix-perm
         max-perm)
-      (reduce (fn [mp p] (if (short-branch? p mp)
+      (reduce (fn [mp p] (if (short-branch? p mp table)
                            mp
-                           (chaffin-search p mp waste-limit)))
+                           (chaffin-search p mp waste-limit table)))
               max-perm
               branches))))
 
+(defn chaffin-seq [n]
+  (let [ps (init-perm-seq n)
+        cs (->> (iterate (fn [[_ w table]]
+                           (let [mp (chaffin-search ps ps w table)]
+                             [mp (inc w) (conj table (rank mp))]))
+                         [nil 0 []])
+                (rest)
+                (map first))
+        all (count-perms n)
+        lim (take-while #(< (rank %) all)
+                        cs)]
+    (lazy-cat lim (take 1 (drop (count lim) cs)))))
+
+(def +all-chaffin-table+ (let [all (map #(map rank (chaffin-seq %)) (range))]
+                           (concat [[0] [1] [2] [3 6] [4 8 12 14 18 20 24]]
+                                   (drop 5 all))))
+
 (defn chaffin
   "Chaffin Method https://github.com/superpermutators/superperm/wiki/Chaffin-method"
-  [n waste-limit]
-  (let [ps (init-perm-seq n)]
-    (chaffin-search ps ps waste-limit)))
+  ([n waste-limit]
+   (let [table (take waste-limit (nth +all-chaffin-table+ n))]
+     (chaffin n waste-limit table)))
+  ([n waste-limit table]
+   (let [ps (init-perm-seq n)]
+     (chaffin-search ps ps waste-limit table))))
 
 
 
@@ -134,19 +150,6 @@
 
 (defn perms->str [perm-seq]
   (apply str (perms->digits perm-seq)))
-
-(defn print-chaffin-table [n]
-  (let [chaffin-seq (map (fn [w] (let [c (chaffin n w)]
-                                   {:waste w,
-                                    :max (rank c)
-                                    :perm (perms->str c)}))
-                         (range))
-        all (count-perms n)]
-    (printf "n=%d\n" n)
-    (loop [{w :waste, m :max, p :perm} (first chaffin-seq), cs (rest chaffin-seq)]
-      (printf "%d\t%d\t%s\n" w m p)
-      (if (< m all)
-        (recur (first cs) (rest cs))))))
 
 (defn str->perms [s n]
   (let [is (map #(Integer/parseInt (str %)) s)
@@ -161,6 +164,16 @@
         ret
         (let [c ((:edges  g) [p p2])]
           (recur (conj-perm ret p2 c) p2 (first r) (rest r)))))))
+
+
+(defn print-chaffin-table [n]
+  (let [cs (map #(hash-map :waste (:waste %)
+                           :max (rank %)
+                           :perm (perms->str %))
+                (chaffin-seq n))]
+    (printf "n=%d\n" n)
+    (doseq [{w :waste, m :max, p :perm} cs]
+      (printf "%d\t%d\t%s\n" w m p))))
 
 
 
