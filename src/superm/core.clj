@@ -175,6 +175,19 @@
     (doseq [{w :waste, m :max, p :perm} cs]
       (printf "%d\t%d\t%s\n" w m p))))
 
+(defn print-subs
+  "Print all substring of length n and mark `x` if not permutation"
+  [ps]
+  (let [n (:n ps)
+        ds (perms->digits ps)]
+    (loop [p (take n ds), r (rest ds), indent "", s (perm-set n)]
+      (when (= n (count p))
+        (print (str indent (apply str p)))
+        (if (not (contains? s p))
+          (print " x"))
+        (println)
+        (recur (take n r) (rest r) (str indent " ") (disj s p))))))
+
 
 
 (comment
