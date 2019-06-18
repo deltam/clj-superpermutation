@@ -1,5 +1,5 @@
 (ns superm.core
-  "find minimal superpermutation"
+  "Find minimal superpermutation with Chaffin Method"
   (:require [clojure.math.combinatorics :as cmb]
             [clojure.set :as cs]
             [clojure.core.async :as ac]))
@@ -99,7 +99,7 @@
          (<= (nth table w) diff))))
 
 (defn chaffin-search
-  "Search maximum length perm-seq has waste under waste-limit"
+  "Search for the longest perm-seq with waste digits below waste-limit"
   [prefix-perm max-perm waste-limit table]
   (let [branches (->> (find-next-perm prefix-perm)
                       (map (fn [[[_ d] c]] (conj-perm prefix-perm d c)))
