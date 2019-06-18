@@ -24,16 +24,37 @@
         c
         (recur (inc c))))))
 
+(defn rotate-origin
+  "Return permutation of rotate `perm` that start with 1"
+  [perm]
+  (let [s (concat perm perm)]
+    (take (count perm) (drop-while #(not= % 1) s))))
+
+(defn rot= [p1 p2 level]
+  (let [n (count p1)
+        f (fn [p] (filter #(<= % (- n level)) p))]
+    (= (rotate-origin (f p1)) (rotate-origin (f p2)))))
+
+(defn connect? [s d c]
+  (let [n (count s)]
+    (loop [i 0]
+      (if (rot= s d i)
+        (<= c (inc i))
+        (if (< i (- n 3))
+          (recur (inc i))
+          (< c n))))))
+
 (defn raw-perm-graph [n]
   (let [pset (perm-set n)
-        pairs (for [p1 pset, p2 pset :when (not= p1 p2)]
-                [p1 p2])]
+        es (for [s pset, d pset
+                 :let [c (edge-cost s d)]
+                 :when (and (not= s d)
+                            (< c n)
+                            (connect? s d c))]
+          [[s d] c])]
     {:nodes pset
-     :edges (apply merge
-                   (for [[src dest] pairs
-                         :let [c (edge-cost src dest)]
-                         :when (< c n)]
-                     {[src dest] c}))}))
+     :edges (apply hash-map
+                   (apply concat es))}))
 
 (def +all-perm-graph+ (map raw-perm-graph (range)))
 
@@ -85,10 +106,10 @@
     (- all (count (:rest perm-seq)))))
 
 (defn find-next-perm [perm-seq]
-  (let [n (:n perm-seq)
+  (let [edges (:edges (perm-graph (:n perm-seq)))
         lp (last-perm perm-seq)
-        edges (map #(vector lp %) (:rest perm-seq))]
-    (select-keys (:edges (perm-graph n)) edges)))
+        nexts (map #(vector lp %) (:rest perm-seq))]
+    (select-keys edges nexts)))
 
 
 
