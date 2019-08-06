@@ -1,4 +1,4 @@
-(ns superm.core
+(ns superperm.chaffin
   "Find minimal superpermutation with Chaffin Method"
   (:require [clojure.math.combinatorics :as cmb]
             [clojure.set :as cs]

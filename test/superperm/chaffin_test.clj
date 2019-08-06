@@ -1,6 +1,6 @@
-(ns superm.core-test
+(ns superperm.chaffin-test
   (:require [clojure.test :refer :all]
-            [superm.core :refer :all]))
+            [superperm.chaffin :refer :all]))
 
 (deftest tail-seq-test
   (let [perm-seq (init-perm-seq 3)]
