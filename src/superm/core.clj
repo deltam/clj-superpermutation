@@ -135,6 +135,19 @@
               max-perm
               branches))))
 
+(defn chaffin-search-same-length
+  [prefix-perm max-perm sames]
+  (let [branches (->> (find-next-perm prefix-perm)
+                      (map (fn [[[_ d] c]] (conj-perm prefix-perm d c)))
+                      (filter (fn [{w :waste}] (<= w (:waste max-perm)))))]
+    (if (empty? branches)
+      (if (= (rank max-perm) (rank prefix-perm))
+        (conj sames prefix-perm)
+        sames)
+      (reduce (fn [sm p] (chaffin-search-same-length p max-perm sm))
+              sames
+              branches))))
+
 (defn chaffin-seq [n]
   (let [ps (init-perm-seq n)
         cs (->> (iterate (fn [[_ w table]]
