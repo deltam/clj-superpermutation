@@ -1,17 +1,9 @@
 (ns superperm.chaffin
-  "Find minimal superpermutation with Chaffin Method"
-  (:require [clojure.math.combinatorics :as cmb]
-            [clojure.set :as cs]
+  "Implementation of Chaffin Method
+  https://github.com/superpermutators/superperm/wiki/Chaffin-method"
+  (:use [superperm.core :refer (perm-set count-perms)])
+  (:require [clojure.set :as cs]
             [clojure.core.async :as ac]))
-
-(def +all-perm-set+ (map #(set (cmb/permutations (range 1 (inc %))))
-                         (range)))
-
-(defn perm-set [n]
-  (nth +all-perm-set+ n))
-
-(defn count-perms [n]
-  (cmb/count-permutations (range 1 (inc n))))
 
 
 (defn edge-cost
