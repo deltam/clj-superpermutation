@@ -1,6 +1,6 @@
-(defproject superperm "0.1.0-SNAPSHOT"
+(defproject clj-superpermutation "0.1.0-SNAPSHOT"
   :description "Find minimal super permutation"
-  :url "http://example.com/FIXME"
+  :url "https://github.com/deltam/clj-superpermutation"
   :license {:name "MIT License"
             :url "none"
             :year 2019
