@@ -154,10 +154,10 @@ https://arxiv.org/abs/1307.2549"
                  [4 3 2 1] [2 (- 3 1/6)]
                  [4 3 1 2] [1 1/6]
                  [4 1 3 2] [0 1.5])
-        [ox oy] (rad-pos 0 0 (* d 60) 300)
+        [ox oy] (rad-pos 0 0 (+ (* d 60) -90) 300)
         sd (count (take-while #(not= % (count p)) p))]
     [[ox oy]
-     (rad-pos ox oy (* 90 (mod (+ sd od) (count p))) 100)]))
+     (rad-pos ox oy (* 90 (mod (+ sd od -1) (count p))) 100)]))
 
 (defn perm->pos [p]
   (condp = (count p)
@@ -209,6 +209,7 @@ https://arxiv.org/abs/1307.2549"
                     edges-str)]
     (spit (str name ".dot") out)
     (sh "neato" "-n1" "-Tpng" (str name ".dot") "-o" (str name ".png"))
+;    (sh "dot" "-Tpng" (str name ".dot") "-o" (str name ".png"))
     (sh "open" (str name ".png"))))
 
 ;(defn cycle-cover->graph [n filename]
