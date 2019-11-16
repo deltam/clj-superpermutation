@@ -203,14 +203,18 @@ https://arxiv.org/abs/1307.2549"
                  (format "v%s -> v%s [color=\"%s\", style=\"%s\"];\n" (apply str e1) (apply str e2) color style))
                edges))))
 
-(defn draw-graph [vertex-str edges-str name]
-  (let [out (format "digraph cycleCover {\n%s\n%s\n}"
-                    vertex-str
-                    edges-str)]
-    (spit (str name ".dot") out)
-    (sh "neato" "-n1" "-Tpng" (str name ".dot") "-o" (str name ".png"))
-;    (sh "dot" "-Tpng" (str name ".dot") "-o" (str name ".png"))
-    (sh "open" (str name ".png"))))
+(defn draw-graph
+  ([vertex-str edges-str name layout]
+   (let [out (format "digraph cycleCover {\n%s\n%s\n}"
+                     vertex-str
+                     edges-str)]
+     (spit (str name ".dot") out)
+     (if (= layout :fix)
+       (sh "neato" "-n1" "-Tpng" (str name ".dot") "-o" (str name ".png"))
+       (sh "dot" "-Tpng" (str name ".dot") "-o" (str name ".png")))
+     (sh "open" (str name ".png"))))
+  ([vertex-str edges-str name]
+   (draw-graph vertex-str edges-str name :flow)))
 
 ;(defn cycle-cover->graph [n filename]
 ;  (let [cc (C2 n)
@@ -227,7 +231,10 @@ https://arxiv.org/abs/1307.2549"
                 (str (edges->dot sc "blue")
                      (edges->dot bc "red")
                      (edges->dot se "gray"))
-                filename)))
+                filename
+                (if (or (= n 3) (= n 4))
+                  :fix
+                  :flow))))
 
 
 ;; sigma,delta
