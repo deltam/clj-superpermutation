@@ -129,6 +129,39 @@ https://arxiv.org/abs/1307.2549"
                c2)))
 
 
+;; alternating-cycle tree, Wilf Graph
+
+(defn sigma-cycles [n]
+  (let [heads (filter #(= n (first %)) (perm-set n))
+        se (sigma-edges n)]
+    (zipmap heads
+            (map (fn [h] (cs/select #(rot= h (first %)) se))
+                 heads))))
+
+(defn perm->ac [p]
+  (concat (take 1 p) (drop 2 p)))
+
+(defn Y2-cycles [n]
+  (let [ss (Y2 n)]
+    (zipmap (map perm->ac ss)
+            (map #(alternating-cycle %) ss))))
+
+(defn cycle-connects [y2c sc]
+  (for [[y ye] y2c, [s se] sc :when (not (empty? (cs/intersection ye se)))]
+    [y s]))
+
+(defn wilf [n]
+  (cycle-connects (Y2-cycles n) (sigma-cycles n)))
+
+(defn reduction [we]
+  (let [r (->> we
+               (group-by second)
+               (map (fn [[_ v]] (map first v)))
+               (filter #(< 1 (count %))))]
+    (set r)))
+
+
+
 
 ;; Graphviz
 
