@@ -15,7 +15,7 @@ https://arxiv.org/abs/1307.2549"
 (defn tau [p]
   (concat (reverse (take 2 p)) (drop 2 p)))
 
-(defn alternative-cycle [start]
+(defn alternating-cycle [start]
   (->> (iterate (fn [[_ _ p]] (let [n1 (tau p)
                                     n2 (sigma-rev n1)]
                                 [p n1 n2]))
@@ -72,10 +72,10 @@ https://arxiv.org/abs/1307.2549"
            (map #(F n %1 %2) (range 1 n) (concat (range 2 n) [2])))))
 
 (defn A2 [n]
-  (reduce-union (map alternative-cycle (Y2 n))))
+  (reduce-union (map alternating-cycle (Y2 n))))
 
 (defn A1 [n]
-  (reduce-union (map alternative-cycle (Y1 n))))
+  (reduce-union (map alternating-cycle (Y1 n))))
 
 (defn C2 [n]
   (sym-diff (sigma-edges n) (A2 n)))
