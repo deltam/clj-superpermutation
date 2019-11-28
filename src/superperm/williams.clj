@@ -209,8 +209,9 @@ https://arxiv.org/abs/1307.2549"
                      vertex-str
                      edges-str)]
      (spit (str name ".dot") out)
-     (if (= layout :fix)
-       (sh "neato" "-n1" "-Tpng" (str name ".dot") "-o" (str name ".png"))
+     (condp = layout
+       :fix (sh "neato" "-n1" "-Tpng" (str name ".dot") "-o" (str name ".png"))
+       :circle (sh "circo" "-Tpng" (str name ".dot") "-o" (str name ".png"))
        (sh "dot" "-Tpng" (str name ".dot") "-o" (str name ".png")))
      (sh "open" (str name ".png"))))
   ([vertex-str edges-str name]
