@@ -23,7 +23,7 @@
           (map (fn [p] (set (filter #(cost? p % cost) ps)))
                ps)))
 
-(def ^:const perm-n 3)
+(def ^:const perm-n 4)
 (def pset (perm-set perm-n))
 (def edges (let [cs (range 1 perm-n)]
              (zipmap cs
@@ -35,30 +35,35 @@
             (map #(vector c %) (filter ps (es p))))
           edges))
 
+(defn waste-count [p1 p2 c ps]
+  (let [p (concat p1 (take-last c p2))]
+    (->> (map #(take-last perm-n (drop-last % p)) (range c))
+         (filter (complement ps))
+         (count))))
+
 (defn find-superperm
-  ([spm cost mn ps]
+  ([spm cost waste mx-waste mx ps]
    (cond
-     (< (:cost mn) cost) mn
-     (empty? ps)         {:spm spm, :cost cost}
+     (empty? ps) {:spm spm, :cost cost, :waste waste}
      :else (reduce (fn [m [c p]]
-                     (let [m2 (find-superperm (conj spm p) (+ cost c) m (disj ps p))]
-                       (if (< (:cost m2) (:cost m))
+                     (let [w (+ waste (waste-count (last spm) p c ps))
+                           m2 (if (< mx-waste w)
+                                {:spm spm, :cost cost, :waste waste}
+                                (find-superperm (conj spm p) (+ cost c) w mx-waste m (disj ps p)))]
+                       (if (< (:cost m) (:cost m2))
                          m2
                          m)))
-                   mn
+                   mx
                    (next-perms (last spm) ps))))
-;  (min-spm
-;   (map (fn [[c p]] (find-superperm (conj spm p) (+ cost c) mn rest-ps))
-;        es))
-  ([st] (find-superperm [st] 0 {:cost Integer/MAX_VALUE} (disj pset st))))
+  ([mx-waste] (let [st (range 1 (inc perm-n))]
+        (find-superperm [st] 0 0 mx-waste {:cost 0} (disj pset st)))))
 
 (defn print-superperm [spm]
   (apply str
          (first
           (reduce (fn [[r lp] p]
-                    (cond
-                      (cost? lp p 1) [(concat r (take-last 1 p)) p]
-                      (cost? lp p 2) [(concat r (take-last 2 p)) p]))
+                    (let [c (first (filter #(cost? lp p %) (range perm-n)))]
+                      [(concat r (take-last c p)) p]))
                   [(first spm) (first spm)]
                   (rest spm)))))
 
