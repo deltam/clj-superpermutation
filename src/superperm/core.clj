@@ -16,6 +16,52 @@
 
 
 
+(def ^:const perm-n 4)
+(def upper-limit
+  "n! + (n-1)! + (n-2)! + (n-3)! + n - 3
+  https://www.gregegan.net/SCIENCE/Superpermutations/Superpermutations.html#WILLIAMS"
+  (let [fn-3 (apply * (range 1 (- perm-n 2)))
+        fn-2 (* fn-3 (- perm-n 2))
+        fn-1 (* fn-2 (dec perm-n))
+        fn (* fn-1 perm-n)]
+    (+ fn fn-1 fn-2 fn-3 perm-n -3)))
+
+(def pset (perm-set perm-n))
+
+(defn cost [p1 p2]
+  (first
+   (filter #(= (drop % p1) (drop-last % p2))
+           (range 1 (inc perm-n)))))
+
+(def edges-cost (let [es (for [x pset, y pset :when (not= x y)]
+                           [(cost x y) x y])]
+                  (zipmap (map rest es) (map first es))))
+
+(defn cost-under? [vs]
+  (every? #(< % perm-n)
+          (map cost vs (rest vs))))
+
+(defn vec->spm [vs]
+  (reduce (fn [spm p]
+            (let [c (cost (take-last perm-n spm) p)]
+              (concat spm (take-last c p))))
+          (first vs)
+          (rest vs)))
+
+(def all-spm (let [st (range 1 (inc perm-n))]
+               (->> (cmb/permutations (disj pset st))
+                    (filter cost-under?)
+                    (map #(vec->spm (concat [st] %))))))
+
+(defn min-spm []
+  (let [cut (filter #(<= (count %) upper-limit) all-spm)
+        sorted (sort #(< (count %1) (count %2)) cut)
+        mn (first sorted)]
+    (take-while #(= (count %) (count mn)) sorted)))
+
+
+
+
 (defn cost? [p1 p2 c]
   (= (drop c p1) (drop-last c p2)))
 
@@ -24,8 +70,6 @@
           (map (fn [p] (set (filter #(cost? p % cost) ps)))
                ps)))
 
-(def ^:const perm-n 3)
-(def pset (perm-set perm-n))
 (def edges (let [cs (range 1 perm-n)]
              (zipmap cs
                      (map #(gen-edges pset %)
