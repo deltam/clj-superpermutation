@@ -102,3 +102,29 @@
                      (next-perms (take-last perm-n spm) rest-ps)))))
   ([] (let [st (range 1 (inc perm-n))]
         (find-superperm [] (range 100) perm-n st))))
+
+
+(declare find-chaffin)
+(def chaffin-table (map #(:rank (find-chaffin %)) (range)))
+
+(defn find-chaffin
+  ([spm_ ps_ waste_ mx-waste mx c p]
+   (let [spm (concat spm_ (take-last c p))
+         add-ps (spm->perms (take-last (+ c perm-n -1) spm))
+         ps (cs/difference ps_ add-ps)
+         waste (+ waste_ (count (cs/difference add-ps ps_)))
+         rank (- (count pset) (count ps))
+         rw (- mx-waste waste)]
+     (cond
+       (< mx-waste waste)         {:spm spm_, :rank (- (count pset) (count ps_))}
+       (< (+ rank (nth chaffin-table rw (count pset))) (:rank mx)) mx
+       (empty? ps)                {:spm spm, :rank rank}
+       :else (reduce (fn [m [c p]]
+                       (let [m2 (find-chaffin spm ps waste mx-waste m c p)]
+                         (if (< (:rank m) (:rank m2))
+                           m2
+                           m)))
+                     mx
+                     (next-perms (take-last perm-n spm) ps)))))
+  ([mx-waste] (let [st (range 1 (inc perm-n))]
+                (find-chaffin [] pset 0 mx-waste {:rank 0} perm-n st))))
