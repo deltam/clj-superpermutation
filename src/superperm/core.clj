@@ -58,7 +58,7 @@
 (defn take-while-tree [pred t]
   (cond
     (empty? t) t
-    (pred (tval t)) []
+    (not (pred (tval t))) []
     :else [(tval t) (fn [] (filter not-empty
                                    (map #(take-while-tree pred %) (branch t))))]))
 
@@ -66,13 +66,18 @@
 
 ;; superperm tree
 
-(defn gen-spm-branch [[prefix rest-ps]]
+(defn gen-spm-branch [{prefix :spm, rest-ps :rest}]
   (map #(let [c (cost (take-last perm-n prefix) %)]
-          [(concat prefix (take-last c %)) (disj rest-ps %)])
+          {:spm (concat prefix (take-last c %)), :rest (disj rest-ps %)})
        rest-ps))
 
 (def spm-tree (let [st (range 1 (inc perm-n))]
-                (rep-tree gen-spm-branch [st (disj pset st)])))
+                (rep-tree gen-spm-branch {:spm st, :rest (disj pset st)})))
+
+
+(defn prune-over-branch [t]
+  (take-while-tree (fn [{spm :spm}] (<= (count spm) upper-limit))
+                   t))
 
 (defn min-count [a b]
   (if (< (count a) (count b))
@@ -80,13 +85,13 @@
     b))
 
 (defn find-min-spm [t]
-  (->> t
-       (take-while-tree (fn [[spm _]] (< upper-limit (count spm))))
-       (reduce-tree (fn [mn [spm ps]] (if (empty? ps)
-                                        (min-count spm mn)
-                                        mn))
-                    min-count
-                    (range upper-limit))))
+  (reduce-tree (fn [mn {spm :spm, ps :rest}]
+                 (if (empty? ps)
+                   (min-count spm mn)
+                   mn))
+               min-count
+               (range upper-limit)
+               t))
 
 
 (defn filter-min-count [vs]
@@ -94,13 +99,13 @@
     (filter #(<= (count %) (count mn)) vs)))
 
 (defn find-min-spms [t]
-  (->> t
-       (take-while-tree (fn [[spm _]] (< upper-limit (count spm))))
-       (reduce-tree (fn [ms [spm ps]] (if (empty? ps)
-                                        (conj ms spm)
-                                        ms))
-                    (fn [ms spms] (filter-min-count (concat ms spms)))
-                    [])))
+  (reduce-tree (fn [ms {spm :spm, ps :rest}]
+                 (if (empty? ps)
+                   (conj ms spm)
+                   ms))
+               (fn [ms spms] (filter-min-count (concat ms spms)))
+               []
+               t))
 
 
 
@@ -112,17 +117,22 @@
        (take-while #(= (count %) perm-n))
        (set)))
 
-(defn gen-chaffin-branch [[prefix waste rest-ps]]
+(defn gen-chaffin-branch [{prefix :spm, waste :waste, rest-ps :rest}]
   (map #(let [c (cost (take-last perm-n prefix) %)
               cur (concat prefix (take-last c %))
               add-ps (spm->perms (take-last (+ perm-n -1 c) cur))
               w (count (cs/difference add-ps rest-ps))]
-          [cur (+ waste w) (cs/difference rest-ps add-ps)])
+          {:spm cur
+           :waste (+ waste w)
+           :rest (cs/difference rest-ps add-ps)})
        rest-ps))
 
 (def chaffin-tree (let [st (range 1 (inc perm-n))]
-                    (rep-tree gen-chaffin-branch [st 0 (disj pset st)])))
+                    (rep-tree gen-chaffin-branch {:spm st, :waste 0, :rest (disj pset st)})))
 
+(defn take-while-waste [waste t]
+  (take-while-tree (fn [{w :waste}] (<= w waste))
+                   t))
 
 
 
@@ -143,10 +153,8 @@
       (empty? bs) []
       :else (get-tree (nth bs k) ks))))
 
-(defn count-leaf [t]
-  (reduce-tree (fn [cnt [spm ps]] (if (empty? ps)
-                                    (inc cnt)
-                                    cnt))
+(defn count-leaves [t]
+  (reduce-tree (fn [cnt _] (inc cnt))
                +
                0
                t))
