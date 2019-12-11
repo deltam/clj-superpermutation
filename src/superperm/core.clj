@@ -134,7 +134,16 @@
   (take-while-tree (fn [{w :waste}] (<= w waste))
                    t))
 
+(defn max-count [a b]
+  (if (< (count a) (count b))
+    b
+    a))
 
+(defn find-max-spm [t]
+  (reduce-tree (fn [mx {spm :spm}] (max-count mx spm))
+               max-count
+               []
+               t))
 
 
 
