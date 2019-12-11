@@ -129,46 +129,12 @@
 
 
 
-(defn cost? [p1 p2 c]
-  (= (drop c p1) (drop-last c p2)))
-
-(defn gen-edges [ps cost]
-  (zipmap ps
-          (map (fn [p] (set (filter #(cost? p % cost) ps)))
-               ps)))
-
-(def edges (let [cs (range 1 perm-n)]
-             (zipmap cs
-                     (map #(gen-edges pset %)
-                          cs))))
-
-(defn next-perms [p ps]
-  (mapcat (fn [[c es]]
-            (map #(vector c %) (filter ps (es p))))
-          edges))
-
 (defn spm->perms [spm]
   (->> (range)
        (map #(take perm-n (drop % spm)))
        (take-while #(= (count %) perm-n))
        (set)))
 
-(defn find-superperm
-  ([spm_ mn c p]
-   (let [spm (concat spm_ (take-last c p))
-         rest-ps (cs/difference pset (spm->perms spm))]
-     (cond
-       (< (count mn) (count spm)) mn
-       (empty? rest-ps) spm
-       :else (reduce (fn [m [c p]]
-                       (let [m2 (find-superperm spm m c p)]
-                         (if (< (count m2) (count m))
-                           m2
-                           m)))
-                     mn
-                     (next-perms (take-last perm-n spm) rest-ps)))))
-  ([] (let [st (range 1 (inc perm-n))]
-        (find-superperm [] (range 100) perm-n st))))
 
 
 (declare find-chaffin)
