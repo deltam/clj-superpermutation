@@ -104,6 +104,30 @@
 
 
 
+;; chaffin method
+
+(defn spm->perms [spm]
+  (->> (range)
+       (map #(take perm-n (drop % spm)))
+       (take-while #(= (count %) perm-n))
+       (set)))
+
+(defn gen-chaffin-branch [[prefix waste rest-ps]]
+  (map #(let [c (cost (take-last perm-n prefix) %)
+              cur (concat prefix (take-last c %))
+              add-ps (spm->perms (take-last (+ perm-n -1 c) cur))
+              w (count (cs/difference add-ps rest-ps))]
+          [cur (+ waste w) (cs/difference rest-ps add-ps)])
+       rest-ps))
+
+(def chaffin-tree (let [st (range 1 (inc perm-n))]
+                    (rep-tree gen-chaffin-branch [st 0 (disj pset st)])))
+
+
+
+
+
+
 ;; utils
 
 (defn prune [n t]
@@ -126,38 +150,3 @@
                +
                0
                t))
-
-
-
-(defn spm->perms [spm]
-  (->> (range)
-       (map #(take perm-n (drop % spm)))
-       (take-while #(= (count %) perm-n))
-       (set)))
-
-
-
-(declare find-chaffin)
-(def chaffin-table (map #(:rank (find-chaffin %)) (range)))
-
-(defn find-chaffin
-  ([spm_ ps_ waste_ mx-waste mx c p]
-   (let [spm (concat spm_ (take-last c p))
-         add-ps (spm->perms (take-last (+ c perm-n -1) spm))
-         ps (cs/difference ps_ add-ps)
-         waste (+ waste_ (count (cs/difference add-ps ps_)))
-         rank (- (count pset) (count ps))
-         rw (- mx-waste waste)]
-     (cond
-       (< mx-waste waste)         {:spm spm_, :rank (- (count pset) (count ps_))}
-       (< (+ rank (nth chaffin-table rw (count pset))) (:rank mx)) mx
-       (empty? ps)                {:spm spm, :rank rank}
-       :else (reduce (fn [m [c p]]
-                       (let [m2 (find-chaffin spm ps waste mx-waste m c p)]
-                         (if (< (:rank m) (:rank m2))
-                           m2
-                           m)))
-                     mx
-                     (next-perms (take-last perm-n spm) ps)))))
-  ([mx-waste] (let [st (range 1 (inc perm-n))]
-                (find-chaffin [] pset 0 mx-waste {:rank 0} perm-n st))))
