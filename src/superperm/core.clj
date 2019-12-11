@@ -45,22 +45,29 @@
 (defn tval [t] (first t))
 (defn branch [t] ((second t)))
 
-(declare reduce-tree-bs)
 (defn reduce-tree [f g init t]
-  (f (reduce-tree-bs f g init (branch t))
+  (f (reduce g
+             init
+             (map #(reduce-tree f g init %) (branch t)))
      (tval t)))
-(defn reduce-tree-bs [f g init bs]
-  (if (empty? bs)
-    init
-    (g (reduce-tree f g init (first bs))
-       (reduce-tree-bs f g init (rest bs)))))
+
+(defn map-tree [f t]
+  (reduce-tree (fn [bs v] [(f v) (fn [] bs)])
+               conj
+               []
+               t))
 
 (defn take-while-tree [pred t]
-  (cond
-    (empty? t) t
-    (not (pred (tval t))) []
-    :else [(tval t) (fn [] (filter not-empty
-                                   (map #(take-while-tree pred %) (branch t))))]))
+  (map-tree tval
+            (rep-tree #(filter (fn [b] (pred (tval b)))
+                               (branch %))
+                      t)))
+
+(defn reduce-leaves [f init t]
+  (let [bs (branch t)]
+    (if (empty? bs)
+      (f init (tval t))
+      (reduce #(reduce-leaves f %1 %2) init bs))))
 
 
 
@@ -85,27 +92,22 @@
     b))
 
 (defn find-min-spm [t]
-  (reduce-tree (fn [mn {spm :spm, ps :rest}]
-                 (if (empty? ps)
-                   (min-count spm mn)
-                   mn))
-               min-count
-               (range upper-limit)
-               t))
+  (reduce-leaves (fn [mn {spm :spm}]
+                   (min-count spm mn))
+                 (range upper-limit)
+                 t))
 
+; (->> spm-tree (prune-over-branch) (find-min-spm))
 
 (defn filter-min-count [vs]
   (let [mn (reduce min-count (first vs) (rest vs))]
     (filter #(<= (count %) (count mn)) vs)))
 
 (defn find-min-spms [t]
-  (reduce-tree (fn [ms {spm :spm, ps :rest}]
-                 (if (empty? ps)
-                   (conj ms spm)
-                   ms))
-               (fn [ms spms] (filter-min-count (concat ms spms)))
-               []
-               t))
+  (reduce-leaves (fn [ms {spm :spm}]
+                   (filter-min-count (conj ms spm)))
+                 []
+                 t))
 
 
 
