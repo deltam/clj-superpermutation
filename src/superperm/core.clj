@@ -58,10 +58,10 @@
                t))
 
 (defn take-while-tree [pred t]
-  (map-tree tval
-            (rep-tree #(filter (fn [b] (pred (tval b)))
-                               (branch %))
-                      t)))
+  (if (pred (tval t))
+    [(tval t) (fn [] (filter not-empty
+                             (map #(take-while-tree pred %)
+                                  (branch t))))]))
 
 (defn reduce-leaves [f init t]
   (let [bs (branch t)]
@@ -142,20 +142,19 @@
   (max-key first pv mv))
 
 (defn find-max-spm [t]
-  (reduce-tree (fn [mx {spm :spm, rest-ps :rest}]
-                 (let [c (- (count pset) (count rest-ps))]
-                   (max-contain-perm mx [c spm])))
-               max-contain-perm
-               [0 []]
-               t))
+  (let [all (count pset)]
+    (reduce-leaves (fn [mx {spm :spm, rest-ps :rest}]
+                     (let [c (- all (count rest-ps))]
+                       (max-contain-perm mx [c spm])))
+                   [0 []]
+                   t)))
 
 
 
 ;; utils
 
 (defn prune [n t]
-  (if (<= n 0)
-    []
+  (if (< 0 n)
     [(tval t) (fn [] (filter not-empty
                              (map #(prune (dec n) %) (branch t))))]))
 
@@ -167,7 +166,6 @@
       :else (get-tree (nth bs k) ks))))
 
 (defn count-leaves [t]
-  (reduce-tree (fn [cnt _] (inc cnt))
-               +
-               0
-               t))
+  (reduce-leaves (fn [cnt _] (inc cnt))
+                 0
+                 t))
