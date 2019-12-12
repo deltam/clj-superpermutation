@@ -73,9 +73,21 @@
 
 ;; superperm tree
 
+(defn spm->perms [spm]
+  (->> (range)
+       (map #(take perm-n (drop % spm)))
+       (take-while #(= (count %) perm-n))
+       (set)))
+
+(defn conj-perm [prefix p]
+  (let [c (cost (take-last perm-n prefix) p)
+        cur (concat prefix (take-last c p))
+        conj-ps (spm->perms (take-last (+ perm-n -1 c) cur))]
+    [cur conj-ps]))
+
 (defn gen-spm-branch [{prefix :spm, rest-ps :rest}]
-  (map #(let [c (cost (take-last perm-n prefix) %)]
-          {:spm (concat prefix (take-last c %)), :rest (disj rest-ps %)})
+  (map #(let [[cur conj-ps] (conj-perm prefix %)]
+          {:spm cur, :rest (cs/difference rest-ps conj-ps)})
        rest-ps))
 
 (def spm-tree (let [st (range 1 (inc perm-n))]
@@ -87,9 +99,7 @@
                    t))
 
 (defn min-count [a b]
-  (if (< (count a) (count b))
-    a
-    b))
+  (min-key count b a))
 
 (defn find-min-spm [t]
   (reduce-leaves (fn [mn {spm :spm}]
@@ -113,20 +123,12 @@
 
 ;; chaffin method
 
-(defn spm->perms [spm]
-  (->> (range)
-       (map #(take perm-n (drop % spm)))
-       (take-while #(= (count %) perm-n))
-       (set)))
-
 (defn gen-chaffin-branch [{prefix :spm, waste :waste, rest-ps :rest}]
-  (map #(let [c (cost (take-last perm-n prefix) %)
-              cur (concat prefix (take-last c %))
-              add-ps (spm->perms (take-last (+ perm-n -1 c) cur))
-              w (count (cs/difference add-ps rest-ps))]
+  (map #(let [[cur conj-ps] (conj-perm prefix %)
+              w (count (cs/difference conj-ps rest-ps))]
           {:spm cur
            :waste (+ waste w)
-           :rest (cs/difference rest-ps add-ps)})
+           :rest (cs/difference rest-ps conj-ps)})
        rest-ps))
 
 (def chaffin-tree (let [st (range 1 (inc perm-n))]
@@ -136,15 +138,15 @@
   (take-while-tree (fn [{w :waste}] (<= w waste))
                    t))
 
-(defn max-count [a b]
-  (if (< (count a) (count b))
-    b
-    a))
+(defn max-contain-perm [mv pv]
+  (max-key first pv mv))
 
 (defn find-max-spm [t]
-  (reduce-tree (fn [mx {spm :spm}] (max-count mx spm))
-               max-count
-               []
+  (reduce-tree (fn [mx {spm :spm, rest-ps :rest}]
+                 (let [c (- (count pset) (count rest-ps))]
+                   (max-contain-perm mx [c spm])))
+               max-contain-perm
+               [0 []]
                t))
 
 
