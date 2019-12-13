@@ -17,6 +17,7 @@
 
 
 (def ^:const perm-n 3)
+
 (def ^:const upper-limit
   "n! + (n-1)! + (n-2)! + (n-3)! + n - 3
   https://www.gregegan.net/SCIENCE/Superpermutations/Superpermutations.html#WILLIAMS"
@@ -38,30 +39,32 @@
 
 ;; functional tree
 
+(defn node [v bs] (vector v bs))
+
 (defn rep-tree [f v]
-  [v (fn [] (map #(rep-tree f %)
-                 (f v)))])
+  (node v (fn [] (map #(rep-tree f %)
+                      (f v)))))
 
 (defn tval [t] (first t))
 (defn branch [t] ((second t)))
 
 (defn reduce-tree [f g init t]
-  (f (reduce g
+  (f (reduce #(g %1 (reduce-tree f g init %2))
              init
-             (map #(reduce-tree f g init %) (branch t)))
+             (branch t))
      (tval t)))
 
 (defn map-tree [f t]
-  (reduce-tree (fn [bs v] [(f v) (fn [] bs)])
+  (reduce-tree (fn [bs v] (node (f v) (fn [] bs)))
                conj
                []
                t))
 
 (defn take-while-tree [pred t]
   (if (pred (tval t))
-    [(tval t) (fn [] (filter not-empty
-                             (map #(take-while-tree pred %)
-                                  (branch t))))]))
+    (node (tval t) (fn [] (filter not-empty
+                                  (map #(take-while-tree pred %)
+                                       (branch t)))))))
 
 (defn reduce-leaves [f init t]
   (let [bs (branch t)]
@@ -141,7 +144,7 @@
 (defn max-contain-perm [mv pv]
   (max-key first pv mv))
 
-(defn find-max-spm [t]
+(defn find-max-contain-perm [t]
   (let [all (count pset)]
     (reduce-leaves (fn [mx {spm :spm, rest-ps :rest}]
                      (let [c (- all (count rest-ps))]
@@ -153,10 +156,17 @@
 
 ;; utils
 
+(defn print-tree [f t]
+  (reduce-tree (fn [all v]
+                 (concat [(f v)] all))
+               conj
+               []
+               t))
+
 (defn prune [n t]
   (if (< 0 n)
-    [(tval t) (fn [] (filter not-empty
-                             (map #(prune (dec n) %) (branch t))))]))
+    (node (tval t) (fn [] (filter not-empty
+                                  (map #(prune (dec n) %) (branch t)))))))
 
 (defn get-tree [t [k & ks]]
   (let [bs (branch t)]
