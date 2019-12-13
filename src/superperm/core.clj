@@ -105,8 +105,10 @@
   (min-key count b a))
 
 (defn find-min-spm [t]
-  (reduce-leaves (fn [mn {spm :spm}]
-                   (min-count spm mn))
+  (reduce-leaves (fn [mn {spm :spm, ps :rest}]
+                   (if (empty? ps)
+                     (min-count spm mn)
+                     mn))
                  (range upper-limit)
                  t))
 
@@ -117,10 +119,13 @@
     (filter #(<= (count %) (count mn)) vs)))
 
 (defn find-min-spms [t]
-  (reduce-leaves (fn [ms {spm :spm}]
-                   (filter-min-count (conj ms spm)))
-                 []
-                 t))
+  (distinct
+   (reduce-leaves (fn [mns {spm :spm, ps :rest}]
+                    (if (empty? ps)
+                      (filter-min-count (conj mns spm))
+                      mns))
+                  []
+                  t)))
 
 
 
