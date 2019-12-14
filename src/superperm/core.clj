@@ -79,13 +79,12 @@
 (defn spm->perms [spm]
   (->> (range)
        (map #(take perm-n (drop % spm)))
-       (take-while #(= (count %) perm-n))
-       (set)))
+       (take-while #(= (count %) perm-n))))
 
 (defn conj-perm [prefix p]
   (let [c (cost (take-last perm-n prefix) p)
         cur (concat prefix (take-last c p))
-        conj-ps (spm->perms (take-last (+ perm-n -1 c) cur))]
+        conj-ps (set (spm->perms (take-last (+ perm-n -1 c) cur)))]
     [cur conj-ps]))
 
 (defn pre= [a b]
@@ -189,7 +188,7 @@
                        (let [lbl (f v)
                              id (format "v%s_%d" (apply str (:spm v)) @cnt)
                              nd (if (empty? (:rest v))
-                                  (format "%s [label=\"%s\"; color=red;];" id lbl)
+                                  (format "%s [label=\"%s\"; color=red; shape=box];" id lbl)
                                   (format "%s [label=\"%s\";];" id lbl))]
                          (swap! cnt inc)
                          [(concat edges (map #(format "%s -> %s;" id %) bs))
@@ -204,6 +203,8 @@
     (format "digraph tree{\n graph[rankdir=LR;];\n %s \n %s}"
             (clojure.string/join "\n" nodes)
             (clojure.string/join "\n" edges))))
+
+;(->> spm-tree (prune-over-branch) (tree->dot #(apply str (:spm %))) (spit "tree3.dot"))
 
 (defn prune [n t]
   (if (< 0 n)
