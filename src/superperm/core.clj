@@ -190,6 +190,29 @@
                []
                t))
 
+(defn tree->dot [f t]
+  (let [cnt (atom 0)
+        [edges nodes _]
+        (reduce-tree (fn [[edges nodes bs] v]
+                       (let [lbl (f v)
+                             id (format "v%s_%d" (apply str (:spm v)) @cnt)
+                             nd (if (empty? (:rest v))
+                                  (format "%s [label=\"%s\"; color=red;];" id lbl)
+                                  (format "%s [label=\"%s\";];" id lbl))]
+                         (swap! cnt inc)
+                         [(concat edges (map #(format "%s -> %s;" id %) bs))
+                          (conj nodes nd)
+                          id]))
+                     (fn [[edges nodes bs] [es ns s d]]
+                       [(concat edges es)
+                        (concat nodes ns)
+                        (conj bs s)])
+                     [[] [] []]
+                     t)]
+    (format "digraph tree{\n graph[rankdir=LR;];\n %s \n %s}"
+            (clojure.string/join "\n" nodes)
+            (clojure.string/join "\n" edges))))
+
 (defn prune [n t]
   (if (< 0 n)
     (node (tval t) (fn [] (filter not-empty
