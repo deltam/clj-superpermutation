@@ -28,6 +28,8 @@
     (+ fn fn-1 fn-2 fn-3 perm-n -3)))
 
 (def pset (perm-set perm-n))
+(def pset-count (count pset))
+(def perm-digits (range 1 (inc perm-n)))
 
 (defn raw-cost [p1 p2]
   (first
@@ -88,13 +90,28 @@
         conj-ps (spm->perms (take-last (+ perm-n -1 c) cur))]
     [cur conj-ps]))
 
-(defn gen-spm-branch [{prefix :spm, rest-ps :rest}]
-  (map #(let [[cur conj-ps] (conj-perm prefix %)]
-          {:spm cur, :rest (cs/difference rest-ps conj-ps)})
-       rest-ps))
+(defn pre= [a b]
+  (let [l (min (count a) (count b))]
+    (= (take l a) (take l b))))
 
-(def spm-tree (let [st (range 1 (inc perm-n))]
-                (rep-tree gen-spm-branch {:spm st, :rest (disj pset st)})))
+(defn distinct-prefix [spms]
+  (->> spms
+       (sort #(< (count (:spm %1)) (count (:spm %2))))
+       (reduce (fn [acc s]
+                 (if (some #(pre= (:spm s) (:spm %)) acc)
+                   acc
+                   (conj acc s)))
+               [])))
+
+(defn gen-spm-branch [{prefix :spm, rest-ps :rest}]
+  (->> rest-ps
+       (map #(let [[cur conj-ps] (conj-perm prefix %)]
+               {:spm cur, :rest (cs/difference rest-ps conj-ps)}))
+       (distinct-prefix)))
+
+(def spm-tree
+  (rep-tree gen-spm-branch {:spm perm-digits
+                            :rest (disj pset perm-digits)}))
 
 
 (defn prune-over-branch [t]
@@ -115,7 +132,7 @@
 ; (->> spm-tree (prune-over-branch) (find-min-spm))
 
 (defn filter-min-count [vs]
-  (let [mn (reduce min-count (first vs) (rest vs))]
+  (let [mn (reduce min-count vs)]
     (filter #(<= (count %) (count mn)) vs)))
 
 (defn find-min-spms [t]
@@ -132,15 +149,18 @@
 ;; chaffin method
 
 (defn gen-chaffin-branch [{prefix :spm, waste :waste, rest-ps :rest}]
-  (map #(let [[cur conj-ps] (conj-perm prefix %)
-              w (count (cs/difference conj-ps rest-ps))]
-          {:spm cur
-           :waste (+ waste w)
-           :rest (cs/difference rest-ps conj-ps)})
-       rest-ps))
+  (->> rest-ps
+       (map #(let [[cur conj-ps] (conj-perm prefix %)
+                   w (count (cs/difference conj-ps rest-ps))]
+               {:spm cur
+                :waste (+ waste w)
+                :rest (cs/difference rest-ps conj-ps)}))
+       (distinct-prefix)))
 
-(def chaffin-tree (let [st (range 1 (inc perm-n))]
-                    (rep-tree gen-chaffin-branch {:spm st, :waste 0, :rest (disj pset st)})))
+(def chaffin-tree
+  (rep-tree gen-chaffin-branch {:spm perm-digits
+                                :waste 0
+                                :rest (disj pset perm-digits)}))
 
 (defn take-while-waste [waste t]
   (take-while-tree (fn [{w :waste}] (<= w waste))
@@ -150,20 +170,22 @@
   (max-key first pv mv))
 
 (defn find-max-contain-perm [t]
-  (let [all (count pset)]
-    (reduce-leaves (fn [mx {spm :spm, rest-ps :rest}]
-                     (let [c (- all (count rest-ps))]
-                       (max-contain-perm mx [c spm])))
-                   [0 []]
-                   t)))
+  (reduce-leaves (fn [mx {spm :spm, rest-ps :rest}]
+                   (let [c (- pset-count (count rest-ps))]
+                     (max-contain-perm mx [c spm])))
+                 [0 []]
+                 t))
 
+(defn find-chaffin [w]
+  (->> chaffin-tree
+       (take-while-waste w)
+       (find-max-contain-perm)))
 
 
 ;; utils
 
 (defn print-tree [f t]
-  (reduce-tree (fn [all v]
-                 (concat [(f v)] all))
+  (reduce-tree (fn [ac v] (conj [(f v)] ac))
                conj
                []
                t))
