@@ -57,10 +57,8 @@
      (tval t)))
 
 (defn map-tree [f t]
-  (reduce-tree (fn [bs v] (node (f v) (fn [] bs)))
-               conj
-               []
-               t))
+  (node (f (tval t))
+        (fn [] (map #(map-tree f %) (branch t)))))
 
 (defn take-while-tree [pred t]
   (if (pred (tval t))
@@ -113,7 +111,6 @@
   (rep-tree gen-spm-branch {:spm perm-digits
                             :rest (disj pset perm-digits)}))
 
-
 (defn prune-over-branch [t]
   (take-while-tree (fn [{spm :spm}] (<= (count spm) upper-limit))
                    t))
@@ -148,19 +145,14 @@
 
 ;; chaffin method
 
-(defn gen-chaffin-branch [{prefix :spm, waste :waste, rest-ps :rest}]
-  (->> rest-ps
-       (map #(let [[cur conj-ps] (conj-perm prefix %)
-                   w (count (cs/difference conj-ps rest-ps))]
-               {:spm cur
-                :waste (+ waste w)
-                :rest (cs/difference rest-ps conj-ps)}))
-       (distinct-prefix)))
+(defn count-waste [spm]
+  (let [ps (spm->perms spm)
+        r (reduce disj pset ps)]
+    (- (count ps)
+       (- pset-count (count r)))))
 
-(def chaffin-tree
-  (rep-tree gen-chaffin-branch {:spm perm-digits
-                                :waste 0
-                                :rest (disj pset perm-digits)}))
+(def chaffin-tree (map-tree #(assoc % :waste (count-waste (:spm %)))
+                            spm-tree))
 
 (defn take-while-waste [waste t]
   (take-while-tree (fn [{w :waste}] (<= w waste))
