@@ -14,31 +14,6 @@
 
 
 
-
-
-(def ^:const perm-n 3)
-
-(def ^:const upper-limit
-  "n! + (n-1)! + (n-2)! + (n-3)! + n - 3
-  https://www.gregegan.net/SCIENCE/Superpermutations/Superpermutations.html#WILLIAMS"
-  (let [fn-3 (apply * (range 1 (- perm-n 2)))
-        fn-2 (* fn-3 (- perm-n 2))
-        fn-1 (* fn-2 (dec perm-n))
-        fn (* fn-1 perm-n)]
-    (+ fn fn-1 fn-2 fn-3 perm-n -3)))
-
-(def pset (perm-set perm-n))
-(def pset-count (count pset))
-(def perm-digits (range 1 (inc perm-n)))
-
-(defn raw-cost [p1 p2]
-  (first
-   (filter #(= (drop % p1) (drop-last % p2))
-           (range 1 (inc perm-n)))))
-(def cost (memoize raw-cost))
-
-
-
 ;; functional tree
 
 (defn node [v bs] (vector v bs))
@@ -56,6 +31,12 @@
              (branch t))
      (tval t)))
 
+(defn reduce-leaves [f init t]
+  (let [bs (branch t)]
+    (if (empty? bs)
+      (f init (tval t))
+      (reduce #(reduce-leaves f %1 %2) init bs))))
+
 (defn map-tree [f t]
   (node (f (tval t))
         (fn [] (map #(map-tree f %) (branch t)))))
@@ -66,25 +47,60 @@
                                   (map #(take-while-tree pred %)
                                        (branch t)))))))
 
-(defn reduce-leaves [f init t]
-  (let [bs (branch t)]
-    (if (empty? bs)
-      (f init (tval t))
-      (reduce #(reduce-leaves f %1 %2) init bs))))
+
+
+
+;; perm config
+
+(defn raw-cost [p1 p2]
+  (let [n (count p1)]
+    (first
+     (filter #(= (drop % p1) (drop-last % p2))
+             (range 1 (inc n))))))
+
+(defn upper-limit [n]
+  "n! + (n-1)! + (n-2)! + (n-3)! + n - 3
+  https://www.gregegan.net/SCIENCE/Superpermutations/Superpermutations.html#WILLIAMS"
+  (let [fn-3 (apply * (range 1 (- n 2)))
+        fn-2 (* fn-3 (- n 2))
+        fn-1 (* fn-2 (dec n))
+        fn (* fn-1 n)]
+    (+ fn fn-1 fn-2 fn-3 n -3)))
+
+(defn gen-config [n]
+  {:n n
+   :pset (perm-set n)
+   :digits (range 1 (inc n))
+   :upper-limit (upper-limit n)
+   :costf (memoize raw-cost)})
+
+(def ^:dynamic *config* (atom nil))
+
+(defn reset-config! [n] (reset! *config* (gen-config n)))
+(reset-config! 3)
+
+(defn cfg [k]
+  (if (= k :pset-count)
+    (count (:pset @*config*))
+    (@*config* k)))
+
+(defn cost [a b] ((cfg :costf) a b))
 
 
 
 ;; superperm tree
 
 (defn spm->perms [spm]
-  (->> (range)
-       (map #(take perm-n (drop % spm)))
-       (take-while #(= (count %) perm-n))))
+  (let [n (cfg :n)]
+    (->> (range)
+         (map #(take n (drop % spm)))
+         (take-while #(= (count %) n)))))
 
 (defn conj-perm [prefix p]
-  (let [c (cost (take-last perm-n prefix) p)
+  (let [n (cfg :n)
+        c (cost (take-last n prefix) p)
         cur (concat prefix (take-last c p))
-        conj-ps (set (spm->perms (take-last (+ perm-n -1 c) cur)))]
+        conj-ps (set (spm->perms (take-last (+ n -1 c) cur)))]
     [cur conj-ps]))
 
 (defn pre= [a b]
@@ -106,32 +122,30 @@
                {:spm cur, :rest (cs/difference rest-ps conj-ps)}))
        (distinct-prefix)))
 
-(def spm-tree
-  (rep-tree gen-spm-branch {:spm perm-digits
-                            :rest (disj pset perm-digits)}))
+(defn gen-spm-tree []
+  (rep-tree gen-spm-branch {:spm (cfg :digits)
+                            :rest (disj (cfg :pset) (cfg :digits))}))
 
 (defn prune-over-branch [t]
-  (take-while-tree (fn [{spm :spm}] (<= (count spm) upper-limit))
+  (take-while-tree (fn [{spm :spm}] (<= (count spm) (cfg :upper-limit)))
                    t))
 
 (defn min-count [a b]
   (min-key count b a))
 
-(defn find-min-spm [t]
+(defn find-shortest-spm [t]
   (reduce-leaves (fn [mn {spm :spm, ps :rest}]
                    (if (empty? ps)
                      (min-count spm mn)
                      mn))
-                 (range upper-limit)
+                 (range (cfg :upper-limit))
                  t))
-
-; (->> spm-tree (prune-over-branch) (find-min-spm))
 
 (defn filter-min-count [vs]
   (let [mn (reduce min-count vs)]
     (filter #(<= (count %) (count mn)) vs)))
 
-(defn find-min-spms [t]
+(defn find-shortest-spms [t]
   (distinct
    (reduce-leaves (fn [mns {spm :spm, ps :rest}]
                     (if (empty? ps)
@@ -146,12 +160,13 @@
 
 (defn count-waste [spm]
   (let [ps (spm->perms spm)
-        r (reduce disj pset ps)]
+        r (reduce disj (cfg :pset) ps)]
     (- (count ps)
-       (- pset-count (count r)))))
+       (- (cfg :pset-count) (count r)))))
 
-(def chaffin-tree (map-tree #(assoc % :waste (count-waste (:spm %)))
-                            spm-tree))
+(defn gen-chaffin-tree []
+  (map-tree #(assoc % :waste (count-waste (:spm %)))
+            (gen-spm-tree)))
 
 (defn take-while-waste [waste t]
   (take-while-tree (fn [{w :waste}] (<= w waste))
@@ -162,18 +177,41 @@
 
 (defn find-max-contain-perm [t]
   (reduce-leaves (fn [mx {spm :spm, rest-ps :rest}]
-                   (let [c (- pset-count (count rest-ps))]
+                   (let [c (- (cfg :pset-count) (count rest-ps))]
                      (max-contain-perm mx [c spm])))
                  [0 []]
                  t))
 
 (defn find-chaffin [w]
-  (->> chaffin-tree
+  (->> (gen-chaffin-tree)
+       (prune-over-branch)
        (take-while-waste w)
        (find-max-contain-perm)))
 
+(defn print-chaffin-table []
+  (let [cs (->> (range)
+                (map #(concat [%] (find-chaffin %))))]
+    (loop [[i m p] (first cs), r (rest cs)]
+      (printf "%d\t%d\t%s\n" i m (apply str p))
+      (if (< m (cfg :pset-count))
+        (recur (first r) (rest r))))))
+
+
+
 
 ;; utils
+
+(defn prune [n t]
+  (if (< 0 n)
+    (node (tval t) (fn [] (filter not-empty
+                                  (map #(prune (dec n) %) (branch t)))))))
+
+(defn get-tree [t [k & ks]]
+  (let [bs (branch t)]
+    (cond
+      (nil? k) t
+      (empty? bs) []
+      :else (get-tree (nth bs k) ks))))
 
 (defn print-tree [f t]
   (reduce-tree (fn [ac v] (conj [(f v)] ac))
@@ -205,18 +243,6 @@
             (clojure.string/join "\n" edges))))
 
 ;(->> spm-tree (prune-over-branch) (tree->dot #(apply str (:spm %))) (spit "tree3.dot"))
-
-(defn prune [n t]
-  (if (< 0 n)
-    (node (tval t) (fn [] (filter not-empty
-                                  (map #(prune (dec n) %) (branch t)))))))
-
-(defn get-tree [t [k & ks]]
-  (let [bs (branch t)]
-    (cond
-      (nil? k) t
-      (empty? bs) []
-      :else (get-tree (nth bs k) ks))))
 
 (defn count-leaves [t]
   (reduce-leaves (fn [cnt _] (inc cnt))
