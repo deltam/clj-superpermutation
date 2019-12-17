@@ -182,16 +182,17 @@
                  [0 []]
                  t))
 
-(defn find-chaffin [w]
-  (->> (gen-chaffin-tree)
+(defn find-chaffin [w t]
+  (->> t
        (prune-over-branch)
        (take-while-waste w)
        (find-max-contain-perm)))
 
 (defn print-chaffin-table []
-  (let [cs (->> (range)
-                (map #(concat [%] (find-chaffin %))))]
-    (loop [[i m p] (first cs), r (rest cs)]
+  (let [t (gen-chaffin-tree)
+        cs (->> (range)
+                (map #(conj (find-chaffin % t) %)))]
+    (loop [[m p i] (first cs), r (rest cs)]
       (printf "%d\t%d\t%s\n" i m (apply str p))
       (if (< m (cfg :pset-count))
         (recur (first r) (rest r))))))
@@ -219,28 +220,34 @@
                []
                t))
 
-(defn tree->dot [f t]
-  (let [cnt (atom 0)
-        [edges nodes _]
-        (reduce-tree (fn [[edges nodes bs] v]
-                       (let [lbl (f v)
-                             id (format "v%s_%d" (apply str (:spm v)) @cnt)
-                             nd (if (empty? (:rest v))
-                                  (format "%s [label=\"%s\"; color=red; shape=box];" id lbl)
-                                  (format "%s [label=\"%s\";];" id lbl))]
-                         (swap! cnt inc)
-                         [(concat edges (map #(format "%s -> %s;" id %) bs))
-                          (conj nodes nd)
-                          id]))
-                     (fn [[edges nodes bs] [es ns s d]]
-                       [(concat edges es)
-                        (concat nodes ns)
-                        (conj bs s)])
-                     [[] [] []]
-                     t)]
-    (format "digraph tree{\n graph[rankdir=LR;];\n %s \n %s}"
-            (clojure.string/join "\n" nodes)
-            (clojure.string/join "\n" edges))))
+(defn tree->dot
+  ([f g t]
+   (let [cnt (atom 0)
+         [edges nodes _]
+         (reduce-tree (fn [[edges nodes ids bs] v]
+                        (let [lbl (f v)
+                              id (format "v%s_%d" (apply str (:spm v)) @cnt)
+                              nd (if (empty? (:rest v))
+                                   (format "%s [label=\"%s\"; shape=box; color=blue;];" id lbl)
+                                   (format "%s [label=\"%s\";];" id lbl))]
+                          (swap! cnt inc)
+                          [(concat edges (map #(format "%s -> %s[label=\"%s\"];" id %1 (g v %2)) ids bs))
+                           (conj nodes nd)
+                           id
+                           v]))
+                      (fn [[edges nodes ids bs] [es ns id b]]
+                        [(concat edges es)
+                         (concat nodes ns)
+                         (conj ids id)
+                         (conj bs b)])
+                      [[] [] [] []]
+                      t)]
+     (format "digraph tree{\n graph[rankdir=LR;];\n %s \n %s}"
+             (clojure.string/join "\n" nodes)
+             (clojure.string/join "\n" edges))))
+  ([t] (tree->dot #(apply str (:spm %))
+                  #(apply str (take-last (cfg :n) (:spm %2)))
+                  t)))
 
 ;(->> spm-tree (prune-over-branch) (tree->dot #(apply str (:spm %))) (spit "tree3.dot"))
 
