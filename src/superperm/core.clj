@@ -126,33 +126,34 @@
   (rep-tree gen-spm-branch {:spm (cfg :digits)
                             :rest (disj (cfg :pset) (cfg :digits))}))
 
-(defn prune-over-branch [t]
-  (take-while-tree (fn [{spm :spm}] (<= (count spm) (cfg :upper-limit)))
-                   t))
+(defn find-min-spm [t]
+  (let [mn-len (atom (cfg :upper-limit))]
+    (->> t
+         (take-while-tree #(< (count (:spm %)) @mn-len))
+         (reduce-leaves (fn [mn v]
+                          (if (and (empty? (:rest v))
+                                   (< (count (:spm v)) (count mn)))
+                            (do (reset! mn-len (count (:spm v)))
+                                (:spm v))
+                            mn))
+                        (range @mn-len)))))
 
-(defn min-count [a b]
-  (min-key count b a))
+(defn conj-min [ms m]
+  (filter #(<= (count %) (count m))
+          (conj ms m)))
 
-(defn find-shortest-spm [t]
-  (reduce-leaves (fn [mn {spm :spm, ps :rest}]
-                   (if (empty? ps)
-                     (min-count spm mn)
-                     mn))
-                 (range (cfg :upper-limit))
-                 t))
-
-(defn filter-min-count [vs]
-  (let [mn (reduce min-count vs)]
-    (filter #(<= (count %) (count mn)) vs)))
-
-(defn find-shortest-spms [t]
-  (distinct
-   (reduce-leaves (fn [mns {spm :spm, ps :rest}]
-                    (if (empty? ps)
-                      (filter-min-count (conj mns spm))
-                      mns))
-                  []
-                  t)))
+(defn find-min-spms [t]
+  (let [mn-len (atom (cfg :upper-limit))]
+    (->> t
+         (take-while-tree #(< (count (:spm %)) @mn-len))
+         (reduce-leaves (fn [mns v]
+                          (if (and (empty? (:rest v))
+                                   (<= (count (:spm v)) @mn-len))
+                            (let [vc (count (:spm v))]
+                              (when (< vc @mn-len) (reset! mn-len vc))
+                              (conj-min mns (:spm v)))
+                            mns))
+                        []))))
 
 
 
@@ -184,7 +185,7 @@
 
 (defn find-chaffin [w t]
   (->> t
-       (prune-over-branch)
+       (take-while-tree #(<= (count (:spm %)) (cfg :upper-limit)))
        (take-while-waste w)
        (find-max-contain-perm)))
 
