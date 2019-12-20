@@ -47,6 +47,13 @@
                                   (map #(take-while-tree pred %)
                                        (branch t)))))))
 
+(defn prune-reduce-leaves [p f init t]
+  (let [acc (atom init)]
+    (->> t
+         (take-while-tree #(not (p @acc %)))
+         (reduce-leaves #(do (reset! acc (f %1 %2))
+                             @acc)
+                        init))))
 
 
 
@@ -126,34 +133,28 @@
   (rep-tree gen-spm-branch {:spm (cfg :digits)
                             :rest (disj (cfg :pset) (cfg :digits))}))
 
+(defn spm? [v] (empty? (:rest v)))
+
 (defn find-min-spm [t]
-  (let [mn-len (atom (cfg :upper-limit))]
-    (->> t
-         (take-while-tree #(< (count (:spm %)) @mn-len))
-         (reduce-leaves (fn [mn v]
-                          (if (and (empty? (:rest v))
-                                   (< (count (:spm v)) (count mn)))
-                            (do (reset! mn-len (count (:spm v)))
-                                (:spm v))
-                            mn))
-                        (range @mn-len)))))
+  (prune-reduce-leaves (fn [mn v] (<= (count mn) (count (:spm v))))
+                       (fn [mn v] (if (spm? v)
+                                    (:spm v)
+                                    mn))
+                       (range (cfg :upper-limit))
+                       t))
 
 (defn conj-min [ms m]
   (filter #(<= (count %) (count m))
           (conj ms m)))
 
 (defn find-min-spms [t]
-  (let [mn-len (atom (cfg :upper-limit))]
-    (->> t
-         (take-while-tree #(< (count (:spm %)) @mn-len))
-         (reduce-leaves (fn [mns v]
-                          (if (and (empty? (:rest v))
-                                   (<= (count (:spm v)) @mn-len))
-                            (let [vc (count (:spm v))]
-                              (when (< vc @mn-len) (reset! mn-len vc))
-                              (conj-min mns (:spm v)))
-                            mns))
-                        []))))
+  (first
+   (prune-reduce-leaves (fn [[mns mc] v] (< mc (count (:spm v))))
+                        (fn [[mns mc] v] (if (spm? v)
+                                           [(conj-min mns (:spm v)) (count (:spm v))]
+                                           [mns mc]))
+                        [[] (cfg :upper-limit)]
+                        t)))
 
 
 
