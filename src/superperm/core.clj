@@ -13,6 +13,44 @@
   (cmb/count-permutations (range 1 (inc n))))
 
 
+;; perm config
+
+(defn raw-cost [p1 p2]
+  (let [n (count p1)]
+    (first
+     (filter #(= (drop % p1) (drop-last % p2))
+             (range 1 (inc n))))))
+
+(defn upper-limit [n]
+  "n! + (n-1)! + (n-2)! + (n-3)! + n - 3
+  https://www.gregegan.net/SCIENCE/Superpermutations/Superpermutations.html#WILLIAMS"
+  (let [fn-3 (apply * (range 1 (- n 2)))
+        fn-2 (* fn-3 (- n 2))
+        fn-1 (* fn-2 (dec n))
+        fn (* fn-1 n)]
+    (+ fn fn-1 fn-2 fn-3 n -3)))
+
+(defn gen-config [n]
+  {:n n
+   :pset (perm-set n)
+   :digits (range 1 (inc n))
+   :upper-limit (upper-limit n)
+   :costf (memoize raw-cost)})
+
+(def ^:dynamic *config* (atom nil))
+
+(defn reset-config! [n] (reset! *config* (gen-config n)))
+(reset-config! 3)
+
+(defn cfg [k]
+  (if (= k :pset-count)
+    (count (:pset @*config*))
+    (@*config* k)))
+
+(defn cost [a b] ((cfg :costf) a b))
+
+
+
 
 ;; functional tree
 
@@ -55,43 +93,6 @@
                              @acc)
                         init))))
 
-
-
-;; perm config
-
-(defn raw-cost [p1 p2]
-  (let [n (count p1)]
-    (first
-     (filter #(= (drop % p1) (drop-last % p2))
-             (range 1 (inc n))))))
-
-(defn upper-limit [n]
-  "n! + (n-1)! + (n-2)! + (n-3)! + n - 3
-  https://www.gregegan.net/SCIENCE/Superpermutations/Superpermutations.html#WILLIAMS"
-  (let [fn-3 (apply * (range 1 (- n 2)))
-        fn-2 (* fn-3 (- n 2))
-        fn-1 (* fn-2 (dec n))
-        fn (* fn-1 n)]
-    (+ fn fn-1 fn-2 fn-3 n -3)))
-
-(defn gen-config [n]
-  {:n n
-   :pset (perm-set n)
-   :digits (range 1 (inc n))
-   :upper-limit (upper-limit n)
-   :costf (memoize raw-cost)})
-
-(def ^:dynamic *config* (atom nil))
-
-(defn reset-config! [n] (reset! *config* (gen-config n)))
-(reset-config! 3)
-
-(defn cfg [k]
-  (if (= k :pset-count)
-    (count (:pset @*config*))
-    (@*config* k)))
-
-(defn cost [a b] ((cfg :costf) a b))
 
 
 
