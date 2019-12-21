@@ -177,12 +177,6 @@
   (take-while-tree (fn [{w :waste}] (<= w waste))
                    t))
 
-(defn find-max-contain-perm [t]
-  (reduce-leaves (fn [mx v]
-                   (max-key first mx [(rank v) (:spm v)]))
-                 [0 []]
-                 t))
-
 (defn find-chaffin [w tbl t]
   (->> t
        (take-while-waste w)
@@ -193,13 +187,21 @@
                             (tval t))
        (#(select-keys % [:rank :spm :waste]))))
 
-(defn print-chaffin-table [t]
-  (let [cs (map #(find-chaffin % table t)
-                (range))]
-    (loop [{w :waste, r :rank, p :spm} (first cs), rs (rest cs)]
-      (printf "%d\t%d\t%s\n" w r (apply str p))
-      (if (< r (cfg :pset-count))
-        (recur (first rs) (rest rs))))))
+(defn chaffin-seq [t]
+  (let [s (->> (iterate (fn [[_ tbl w]]
+                          (let [c (find-chaffin w tbl t)]
+                            [c (conj tbl (:rank c)) (inc w)]))
+                        [nil [] 0])
+               (rest)
+               (map first))
+        [tw dw] (split-with #(< (:rank %) (cfg :pset-count)) s)]
+    (lazy-cat tw [(first dw)])))
+
+(defn chaffin-table [t] (map :rank (chaffin-seq t)))
+
+(defn print-chaffin-table []
+  (doseq [{w :waste, r :rank, p :spm} (chaffin-seq (gen-chaffin-tree))]
+    (printf "%d\t%d\t%s\n" w r (apply str p))))
 
 
 
