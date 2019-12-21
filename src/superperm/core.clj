@@ -175,13 +175,11 @@
   (take-while-tree (fn [{w :waste}] (<= w waste))
                    t))
 
-(defn max-contain-perm [mv pv]
-  (max-key first pv mv))
+(defn rank [v] (- (cfg :pset-count) (count (:rest v))))
 
 (defn find-max-contain-perm [t]
-  (reduce-leaves (fn [mx {spm :spm, rest-ps :rest}]
-                   (let [c (- (cfg :pset-count) (count rest-ps))]
-                     (max-contain-perm mx [c spm])))
+  (reduce-leaves (fn [mx v]
+                   (max-key first mx [(rank v) (:spm v)]))
                  [0 []]
                  t))
 
