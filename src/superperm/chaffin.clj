@@ -1,7 +1,8 @@
 (ns superperm.chaffin
   "Implementation of Chaffin Method
   https://github.com/superpermutators/superperm/wiki/Chaffin-method"
-  (:use [superperm.core :refer (cfg map-tree spm-tree spm->perms take-while-tree prune-reduce-leaves tval)]))
+  (:require [superperm.core :refer [cfg spm-tree spm->perms]]
+            [superperm.tree :refer :all]))
 
 
 (defn count-waste [spm]
@@ -52,6 +53,8 @@
 
 
 (comment
+
+(superperm.core/reset-config! 4)
 
 (time (superperm.chaffin/print-chaffin-table))
 ;> 0	4	1234123
